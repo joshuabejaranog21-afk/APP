@@ -13,6 +13,8 @@ class Tarea {
   TipoActividad tipo;
   DateTime fechaCreacion;
   bool notificado;
+  bool asignadoPorMaestro;
+  String? grupoId;
 
   Tarea({
     required this.id,
@@ -25,6 +27,8 @@ class Tarea {
     this.tipo = TipoActividad.tarea,
     DateTime? fechaCreacion,
     this.notificado = false,
+    this.asignadoPorMaestro = false,
+    this.grupoId,
   }) : fechaCreacion = fechaCreacion ?? DateTime.now();
 
   int get diasRestantes {
@@ -47,6 +51,8 @@ class Tarea {
         'tipo': tipo.index,
         'fechaCreacion': fechaCreacion.toIso8601String(),
         'notificado': notificado,
+        'asignadoPorMaestro': asignadoPorMaestro,
+        'grupoId': grupoId,
       };
 
   factory Tarea.fromJson(Map<String, dynamic> json) => Tarea(
@@ -59,7 +65,9 @@ class Tarea {
         prioridad: PrioridadTarea.values[json['prioridad'] ?? 1],
         tipo: TipoActividad.values[json['tipo'] ?? 0],
         fechaCreacion: DateTime.parse(json['fechaCreacion'] ?? DateTime.now().toIso8601String()),
-        notificado: json['notificado'] ?? false,
+        notificado: json['notificado'] == true,
+        asignadoPorMaestro: json['asignadoPorMaestro'] == true,
+        grupoId: json['grupoId'] as String?,
       );
 }
 

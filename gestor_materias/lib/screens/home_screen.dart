@@ -9,6 +9,8 @@ import 'horario/horario_screen.dart';
 import 'calendario/calendario_screen.dart';
 import 'estadisticas/estadisticas_screen.dart';
 import 'pomodoro/pomodoro_screen.dart';
+import 'maestro/maestro_screen.dart';
+import 'rol/rol_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,7 +21,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = const [
+  static const _screensAlumno = [
     _DashboardTab(),
     MateriasScreen(),
     TareasScreen(),
@@ -29,8 +31,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final esMaestro = context.watch<AppProvider>().esMaestro;
+
+    if (esMaestro) {
+      return const MaestroScreen();
+    }
+
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: IndexedStack(index: _currentIndex, children: _screensAlumno),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (i) => setState(() => _currentIndex = i),
@@ -77,6 +85,12 @@ class _DashboardTab extends StatelessWidget {
           IconButton(
             icon: Icon(provider.modoOscuro ? Icons.light_mode : Icons.dark_mode),
             onPressed: provider.toggleModoOscuro,
+          ),
+          IconButton(
+            icon: const Icon(Icons.swap_horiz),
+            tooltip: 'Cambiar a modo maestro',
+            onPressed: () => Navigator.pushReplacement(
+                context, MaterialPageRoute(builder: (_) => const RolScreen())),
           ),
           IconButton(
             icon: const Icon(Icons.timer_outlined),
@@ -132,6 +146,16 @@ class _DashboardTab extends StatelessWidget {
                     _MateriaChip(materia: provider.materias[i]),
               ),
             ),
+          ],
+          if (provider.anunciosRecientes.isNotEmpty) ...[
+            _SectionHeader(
+                title: 'Anuncios del maestro',
+                count: provider.anunciosRecientes.length),
+            const SizedBox(height: 8),
+            ...provider.anunciosRecientes
+                .take(3)
+                .map((a) => AnuncioCard(anuncio: a)),
+            const SizedBox(height: 20),
           ],
           if (provider.materias.isEmpty && provider.tareas.isEmpty)
             const _EmptyDashboard(),
@@ -275,8 +299,27 @@ class _TareaQuickCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 6),
-            Text('${tarea.tipo.emoji} ${tarea.tipo.label}',
-                style: const TextStyle(fontSize: 11)),
+            Flexible(
+              child: Text('${tarea.tipo.emoji} ${tarea.tipo.label}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11)),
+            ),
+            if (tarea.asignadoPorMaestro == true) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text('Maestro',
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.green,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ],
           ],
         ),
         trailing: Column(

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'providers/app_provider.dart';
 import 'screens/home_screen.dart';
+import 'screens/rol/rol_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -27,10 +29,19 @@ class GestorMateriasApp extends StatelessWidget {
     return MaterialApp(
       title: 'Gestor de Materias',
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('es', 'ES'), Locale('en', 'US')],
+      locale: const Locale('es', 'ES'),
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
-      home: const HomeScreen(),
+      home: context.watch<AppProvider>().rolSeleccionado
+          ? const HomeScreen()
+          : const RolScreen(),
     );
   }
 }

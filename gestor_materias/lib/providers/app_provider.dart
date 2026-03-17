@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../models/materia.dart';
 import '../models/tarea.dart';
 import '../models/nota.dart';
+import '../models/grupo.dart';
 
 class AppProvider extends ChangeNotifier {
   final _uuid = const Uuid();
@@ -13,15 +14,23 @@ class AppProvider extends ChangeNotifier {
   List<Tarea> _tareas = [];
   List<Nota> _notas = [];
   List<Calificacion> _calificaciones = [];
+  List<Grupo> _grupos = [];
+  List<Anuncio> _anuncios = [];
   bool _modoOscuro = false;
   bool _cargando = false;
+  bool _esMaestro = false;
+  bool _rolSeleccionado = false;
 
   List<Materia> get materias => _materias;
   List<Tarea> get tareas => _tareas;
   List<Nota> get notas => _notas;
   List<Calificacion> get calificaciones => _calificaciones;
+  List<Grupo> get grupos => _grupos;
+  List<Anuncio> get anuncios => _anuncios;
   bool get modoOscuro => _modoOscuro;
   bool get cargando => _cargando;
+  bool get esMaestro => _esMaestro;
+  bool get rolSeleccionado => _rolSeleccionado;
 
   // ─── Filtros ───────────────────────────────────────────────
   List<Tarea> tareasDeMateria(String materiaId) =>
@@ -189,6 +198,86 @@ class AppProvider extends ChangeNotifier {
 
   String generarCalificacionId() => _uuid.v4();
 
+  // ─── Rol ───────────────────────────────────────────────────
+  Future<void> setRol(bool esMaestro) async {
+    _esMaestro = esMaestro;
+    _rolSeleccionado = true;
+    notifyListeners();
+    await _guardar();
+  }
+
+  // ─── Grupos ────────────────────────────────────────────────
+  Future<void> agregarGrupo(Grupo g) async {
+    _grupos.add(g);
+    notifyListeners();
+    await _guardar();
+  }
+
+  Future<void> editarGrupo(Grupo g) async {
+    final i = _grupos.indexWhere((x) => x.id == g.id);
+    if (i >= 0) {
+      _grupos[i] = g;
+      notifyListeners();
+      await _guardar();
+    }
+  }
+
+  Future<void> eliminarGrupo(String id) async {
+    _grupos.removeWhere((g) => g.id == id);
+    _tareas.removeWhere((t) => t.grupoId == id && t.asignadoPorMaestro);
+    _anuncios.removeWhere((a) => a.grupoId == id);
+    notifyListeners();
+    await _guardar();
+  }
+
+  String generarGrupoId() => _uuid.v4();
+
+  List<Tarea> tareasDeGrupo(String grupoId) =>
+      _tareas.where((t) => t.grupoId == grupoId).toList();
+
+  // ─── Anuncios ──────────────────────────────────────────────
+  List<Anuncio> get anunciosFijados =>
+      _anuncios.where((a) => a.fijado).toList()
+        ..sort((a, b) => b.fecha.compareTo(a.fecha));
+
+  List<Anuncio> get anunciosRecientes {
+    final lista = List<Anuncio>.from(_anuncios)
+      ..sort((a, b) => b.fecha.compareTo(a.fecha));
+    return lista;
+  }
+
+  Future<void> agregarAnuncio(Anuncio a) async {
+    _anuncios.add(a);
+    notifyListeners();
+    await _guardar();
+  }
+
+  Future<void> editarAnuncio(Anuncio a) async {
+    final i = _anuncios.indexWhere((x) => x.id == a.id);
+    if (i >= 0) {
+      _anuncios[i] = a;
+      notifyListeners();
+      await _guardar();
+    }
+  }
+
+  Future<void> eliminarAnuncio(String id) async {
+    _anuncios.removeWhere((a) => a.id == id);
+    notifyListeners();
+    await _guardar();
+  }
+
+  Future<void> toggleFijarAnuncio(String id) async {
+    final i = _anuncios.indexWhere((a) => a.id == id);
+    if (i >= 0) {
+      _anuncios[i].fijado = !_anuncios[i].fijado;
+      notifyListeners();
+      await _guardar();
+    }
+  }
+
+  String generarAnuncioId() => _uuid.v4();
+
   // ─── Tema ──────────────────────────────────────────────────
   void toggleModoOscuro() {
     _modoOscuro = !_modoOscuro;
@@ -228,7 +317,23 @@ class AppProvider extends ChangeNotifier {
           .toList();
     }
 
+    final gJson = prefs.getString('grupos');
+    if (gJson != null) {
+      _grupos = (jsonDecode(gJson) as List)
+          .map((e) => Grupo.fromJson(e))
+          .toList();
+    }
+
+    final aJson = prefs.getString('anuncios');
+    if (aJson != null) {
+      _anuncios = (jsonDecode(aJson) as List)
+          .map((e) => Anuncio.fromJson(e))
+          .toList();
+    }
+
     _modoOscuro = prefs.getBool('modoOscuro') ?? false;
+    _esMaestro = prefs.getBool('esMaestro') ?? false;
+    _rolSeleccionado = prefs.getBool('rolSeleccionado') ?? false;
 
     _cargando = false;
     notifyListeners();
@@ -244,6 +349,12 @@ class AppProvider extends ChangeNotifier {
         'notas', jsonEncode(_notas.map((n) => n.toJson()).toList()));
     await prefs.setString('calificaciones',
         jsonEncode(_calificaciones.map((c) => c.toJson()).toList()));
+    await prefs.setString(
+        'grupos', jsonEncode(_grupos.map((g) => g.toJson()).toList()));
+    await prefs.setString(
+        'anuncios', jsonEncode(_anuncios.map((a) => a.toJson()).toList()));
     await prefs.setBool('modoOscuro', _modoOscuro);
+    await prefs.setBool('esMaestro', _esMaestro);
+    await prefs.setBool('rolSeleccionado', _rolSeleccionado);
   }
 }
