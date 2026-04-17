@@ -2,14 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'providers/app_provider.dart';
 import 'screens/home_screen.dart';
+import 'screens/maestro/maestro_screen.dart';
 import 'screens/rol/rol_screen.dart';
+import 'services/api_service.dart';
+import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('es_ES', null);
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  await NotificationService.inicializar();
   final provider = AppProvider();
   await provider.cargar();
   runApp(
@@ -39,9 +45,11 @@ class GestorMateriasApp extends StatelessWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
-      home: context.watch<AppProvider>().rolSeleccionado
-          ? const HomeScreen()
-          : const RolScreen(),
+      home: !context.watch<AppProvider>().rolSeleccionado
+          ? const RolScreen()
+          : context.watch<AppProvider>().esMaestro
+              ? const MaestroScreen()
+              : const HomeScreen(),
     );
   }
 }

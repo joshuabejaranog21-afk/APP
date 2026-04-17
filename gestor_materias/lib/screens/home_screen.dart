@@ -3,14 +3,17 @@ import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
 import '../models/tarea.dart';
 import '../models/materia.dart';
+import '../models/grupo.dart';
 import 'materias/materias_screen.dart';
 import 'tareas/tareas_screen.dart';
+import 'tareas/tarea_form.dart';
 import 'horario/horario_screen.dart';
-import 'calendario/calendario_screen.dart';
 import 'estadisticas/estadisticas_screen.dart';
 import 'pomodoro/pomodoro_screen.dart';
 import 'maestro/maestro_screen.dart';
-import 'rol/rol_screen.dart';
+import 'perfil/perfil_screen.dart';
+import 'busqueda/busqueda_screen.dart';
+import 'pdfs/pdfs_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,7 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _DashboardTab(),
     MateriasScreen(),
     TareasScreen(),
-    CalendarioScreen(),
+    PDFsScreen(),
     EstadisticasScreen(),
   ];
 
@@ -33,9 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final esMaestro = context.watch<AppProvider>().esMaestro;
 
-    if (esMaestro) {
-      return const MaestroScreen();
-    }
+    if (esMaestro) return const MaestroScreen();
 
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screensAlumno),
@@ -47,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Inicio'),
           NavigationDestination(icon: Icon(Icons.school_outlined), selectedIcon: Icon(Icons.school), label: 'Materias'),
           NavigationDestination(icon: Icon(Icons.task_outlined), selectedIcon: Icon(Icons.task), label: 'Tareas'),
-          NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: 'Calendario'),
+          NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'PDFs'),
           NavigationDestination(icon: Icon(Icons.bar_chart_outlined), selectedIcon: Icon(Icons.bar_chart), label: 'Stats'),
         ],
       ),
@@ -55,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+// ─── Dashboard Tab ──────────────────────────────────────────────────────────
 class _DashboardTab extends StatelessWidget {
   const _DashboardTab();
 
@@ -83,14 +85,11 @@ class _DashboardTab extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: Icon(provider.modoOscuro ? Icons.light_mode : Icons.dark_mode),
-            onPressed: provider.toggleModoOscuro,
-          ),
-          IconButton(
-            icon: const Icon(Icons.swap_horiz),
-            tooltip: 'Cambiar a modo maestro',
-            onPressed: () => Navigator.pushReplacement(
-                context, MaterialPageRoute(builder: (_) => const RolScreen())),
+            icon: const Icon(Icons.search),
+            tooltip: 'Buscar',
+            onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BusquedaScreen())),
           ),
           IconButton(
             icon: const Icon(Icons.timer_outlined),
@@ -104,35 +103,96 @@ class _DashboardTab extends StatelessWidget {
             onPressed: () => Navigator.push(
                 context, MaterialPageRoute(builder: (_) => const HorarioScreen())),
           ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (v) async {
+              if (v == 'perfil') {
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const PerfilScreen()));
+              } else if (v == 'tema') {
+                context.read<AppProvider>().toggleModoOscuro();
+              } else if (v == 'maestro') {
+                context.read<AppProvider>().setRol(true);
+              } else if (v == 'seed') {
+                await context.read<AppProvider>().seedDatosDePrueba();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('¡Datos de prueba cargados!'),
+                        backgroundColor: Colors.green),
+                  );
+                }
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'perfil', child: ListTile(leading: Icon(Icons.account_circle_outlined), title: Text('Mi perfil'), contentPadding: EdgeInsets.zero)),
+              PopupMenuItem(
+                value: 'tema',
+                child: ListTile(
+                  leading: Icon(provider.modoOscuro ? Icons.light_mode : Icons.dark_mode),
+                  title: Text(provider.modoOscuro ? 'Modo claro' : 'Modo oscuro'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(value: 'maestro', child: ListTile(leading: Icon(Icons.swap_horiz), title: Text('Modo maestro'), contentPadding: EdgeInsets.zero)),
+              const PopupMenuItem(value: 'seed', child: ListTile(leading: Icon(Icons.data_object), title: Text('Cargar datos prueba'), contentPadding: EdgeInsets.zero)),
+            ],
+          ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+          builder: (_) => const TareaForm(),
+        ),
+        icon: const Icon(Icons.add),
+        label: const Text('Nueva tarea'),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ── Resumen cards ──────────────────────────────────
           _ResumenCards(provider: provider),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // ── Streak card ────────────────────────────────────
+          if (provider.rachaEstudio > 0) ...[
+            _RachaCard(racha: provider.rachaEstudio),
+            const SizedBox(height: 16),
+          ],
+
+          // ── Para hoy ──────────────────────────────────────
           if (provider.tareasHoy.isNotEmpty) ...[
             _SectionHeader(title: 'Para hoy', count: provider.tareasHoy.length),
             const SizedBox(height: 8),
             ...provider.tareasHoy.map((t) => _TareaQuickCard(tarea: t)),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
           ],
+
+          // ── Próximas entregas ──────────────────────────────
           if (provider.tareasPendientes.isNotEmpty) ...[
             _SectionHeader(title: 'Próximas entregas', count: provider.tareasPendientes.length),
             const SizedBox(height: 8),
             ...provider.tareasPendientes.take(5).map((t) => _TareaQuickCard(tarea: t)),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
           ],
+
+          // ── Vencidas ──────────────────────────────────────
           if (provider.tareasVencidas.isNotEmpty) ...[
             _SectionHeader(
-                title: '⚠️ Vencidas',
+                title: 'Vencidas',
                 count: provider.tareasVencidas.length,
                 color: Colors.red),
             const SizedBox(height: 8),
-            ...provider.tareasVencidas
-                .map((t) => _TareaQuickCard(tarea: t, vencida: true)),
-            const SizedBox(height: 20),
+            ...provider.tareasVencidas.map((t) => _TareaQuickCard(tarea: t, vencida: true)),
+            const SizedBox(height: 16),
           ],
+
+          // ── Mis materias ───────────────────────────────────
           if (provider.materias.isNotEmpty) ...[
             _SectionHeader(title: 'Mis materias'),
             const SizedBox(height: 8),
@@ -141,31 +201,85 @@ class _DashboardTab extends StatelessWidget {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: provider.materias.length,
-                separatorBuilder: (_, index) => const SizedBox(width: 12),
+                separatorBuilder: (_, i) => const SizedBox(width: 12),
                 itemBuilder: (ctx, i) =>
                     _MateriaChip(materia: provider.materias[i]),
               ),
             ),
+            const SizedBox(height: 16),
           ],
+
+          // ── Anuncios del maestro ───────────────────────────
           if (provider.anunciosRecientes.isNotEmpty) ...[
             _SectionHeader(
                 title: 'Anuncios del maestro',
                 count: provider.anunciosRecientes.length),
             const SizedBox(height: 8),
-            ...provider.anunciosRecientes
-                .take(3)
-                .map((a) => AnuncioCard(anuncio: a)),
-            const SizedBox(height: 20),
+            ...provider.anunciosRecientes.take(3).map((a) => AnuncioCard(anuncio: a)),
+            const SizedBox(height: 16),
           ],
+
           if (provider.materias.isEmpty && provider.tareas.isEmpty)
             const _EmptyDashboard(),
-          const SizedBox(height: 80),
+
+          const SizedBox(height: 100),
         ],
       ),
     );
   }
 }
 
+// ─── Racha card ─────────────────────────────────────────────────────────────
+class _RachaCard extends StatelessWidget {
+  final int racha;
+  const _RachaCard({required this.racha});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFFF9A3C),
+            const Color(0xFFFF6B6B),
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Text('🔥', style: TextStyle(fontSize: 32)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$racha ${racha == 1 ? 'día' : 'días'} de racha',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16),
+                ),
+                Text(
+                  '¡Sigue así! Completa tareas cada día para mantener tu racha.',
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Resumen cards ───────────────────────────────────────────────────────────
 class _ResumenCards extends StatelessWidget {
   final AppProvider provider;
   const _ResumenCards({required this.provider});
@@ -201,8 +315,7 @@ class _StatCard extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 22),
             const SizedBox(height: 8),
-            Text(value,
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: color)),
+            Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: color)),
             Text(label, style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
@@ -211,6 +324,7 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+// ─── Section header ──────────────────────────────────────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String title;
   final int? count;
@@ -247,6 +361,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+// ─── Tarea quick card ────────────────────────────────────────────────────────
 class _TareaQuickCard extends StatelessWidget {
   final Tarea tarea;
   final bool vencida;
@@ -257,8 +372,7 @@ class _TareaQuickCard extends StatelessWidget {
     final provider = context.read<AppProvider>();
     final materia = provider.materias.firstWhere(
       (m) => m.id == tarea.materiaId,
-      orElse: () =>
-          Materia(id: '', nombre: 'Sin materia', colorValue: 0xFF9E9E9E),
+      orElse: () => Materia(id: '', nombre: 'Sin materia', colorValue: 0xFF9E9E9E),
     );
     final color = Color(materia.colorValue);
     final prioColor = tarea.prioridad == PrioridadTarea.alta
@@ -271,10 +385,8 @@ class _TareaQuickCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: Container(
-          width: 4,
-          height: 40,
-          decoration: BoxDecoration(
-              color: color, borderRadius: BorderRadius.circular(4)),
+          width: 4, height: 40,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
         ),
         title: Text(
           tarea.titulo,
@@ -287,37 +399,50 @@ class _TareaQuickCard extends StatelessWidget {
                 : null,
           ),
         ),
-        subtitle: Row(
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Flexible(
-              child: Text(
-                materia.nombre,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    color: color, fontSize: 12, fontWeight: FontWeight.w500),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text('${tarea.tipo.emoji} ${tarea.tipo.label}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11)),
-            ),
-            if (tarea.asignadoPorMaestro == true) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
+            Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    materia.nombre,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
                 ),
-                child: const Text('Maestro',
-                    style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.green,
-                        fontWeight: FontWeight.w600)),
+                const SizedBox(width: 6),
+                Text('${tarea.tipo.emoji} ${tarea.tipo.label}',
+                    style: const TextStyle(fontSize: 11)),
+                if (tarea.esRecurrente) ...[
+                  const SizedBox(width: 4),
+                  const Icon(Icons.repeat, size: 11, color: Colors.grey),
+                ],
+              ],
+            ),
+            // Subtask mini-bar
+            if (tarea.subtareas.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: tarea.progresoSubtareas,
+                        minHeight: 3,
+                        backgroundColor: color.withValues(alpha: 0.15),
+                        valueColor: AlwaysStoppedAnimation<Color>(color),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${tarea.subtareasCompletadasCount}/${tarea.subtareas.length}',
+                    style: TextStyle(fontSize: 10, color: color),
+                  ),
+                ],
               ),
             ],
           ],
@@ -357,10 +482,8 @@ class _TareaQuickCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Container(
-              width: 8,
-              height: 8,
-              decoration:
-                  BoxDecoration(color: prioColor, shape: BoxShape.circle),
+              width: 8, height: 8,
+              decoration: BoxDecoration(color: prioColor, shape: BoxShape.circle),
             ),
           ],
         ),
@@ -375,6 +498,7 @@ class _TareaQuickCard extends StatelessWidget {
   }
 }
 
+// ─── Materia chip ────────────────────────────────────────────────────────────
 class _MateriaChip extends StatelessWidget {
   final Materia materia;
   const _MateriaChip({required this.materia});
@@ -417,6 +541,48 @@ class _MateriaChip extends StatelessWidget {
   }
 }
 
+// ─── Anuncio card ────────────────────────────────────────────────────────────
+class AnuncioCard extends StatelessWidget {
+  final Anuncio anuncio;
+  const AnuncioCard({super.key, required this.anuncio});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                if (anuncio.fijado)
+                  const Icon(Icons.push_pin, size: 14, color: Colors.orange),
+                if (anuncio.fijado) const SizedBox(width: 4),
+                Expanded(
+                  child: Text(anuncio.titulo,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 13)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(anuncio.cuerpo,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Empty dashboard ─────────────────────────────────────────────────────────
 class _EmptyDashboard extends StatelessWidget {
   const _EmptyDashboard();
 

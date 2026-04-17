@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/app_provider.dart';
+import '../../services/notification_service.dart';
 
 enum _ModoPomodoro { trabajo, descansoCorto, descansoLargo }
 
@@ -15,17 +16,11 @@ class PomodoroScreen extends StatefulWidget {
 class _PomodoroScreenState extends State<PomodoroScreen>
     with TickerProviderStateMixin {
   _ModoPomodoro _modo = _ModoPomodoro.trabajo;
-  int _segundosRestantes = 25 * 60;
+  late int _segundosRestantes;
   bool _corriendo = false;
   int _rondas = 0;
   Timer? _timer;
   late AnimationController _pulseController;
-
-  static const _duraciones = {
-    _ModoPomodoro.trabajo: 25 * 60,
-    _ModoPomodoro.descansoCorto: 5 * 60,
-    _ModoPomodoro.descansoLargo: 15 * 60,
-  };
 
   static const _colores = {
     _ModoPomodoro.trabajo: Color(0xFFEF5350),
@@ -46,6 +41,15 @@ class _PomodoroScreenState extends State<PomodoroScreen>
       vsync: this,
       duration: const Duration(seconds: 1),
     )..repeat(reverse: true);
+    // Set initial time from provider after first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _segundosRestantes = _duracionActual(context.read<AppProvider>());
+        });
+      }
+    });
+    _segundosRestantes = 25 * 60; // default until provider loads
   }
 
   @override
@@ -55,7 +59,16 @@ class _PomodoroScreenState extends State<PomodoroScreen>
     super.dispose();
   }
 
-  int get _duracionTotal => _duraciones[_modo]!;
+  int _duracionActual(AppProvider p) {
+    switch (_modo) {
+      case _ModoPomodoro.trabajo:
+        return p.pomodoroTrabajo * 60;
+      case _ModoPomodoro.descansoCorto:
+        return p.pomodoroDescansoCorto * 60;
+      case _ModoPomodoro.descansoLargo:
+        return p.pomodoroDescansoLargo * 60;
+    }
+  }
 
   void _iniciar() {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -77,24 +90,29 @@ class _PomodoroScreenState extends State<PomodoroScreen>
 
   void _reiniciar() {
     _timer?.cancel();
+    final p = context.read<AppProvider>();
     setState(() {
       _corriendo = false;
-      _segundosRestantes = _duracionTotal;
+      _segundosRestantes = _duracionActual(p);
     });
   }
 
   void _cambiarModo(_ModoPomodoro modo) {
     _timer?.cancel();
+    final p = context.read<AppProvider>();
     setState(() {
       _modo = modo;
       _corriendo = false;
-      _segundosRestantes = _duraciones[modo]!;
+      _segundosRestantes = _duracionActual(p);
     });
   }
 
   void _onFinish() {
     if (_modo == _ModoPomodoro.trabajo) {
       setState(() => _rondas++);
+      NotificationService.notificarPomodoroDescanso(_rondas);
+    } else {
+      NotificationService.notificarPomodoroFin();
     }
     showDialog(
       context: context,
@@ -103,7 +121,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
             ? '¡Ronda completada!'
             : '¡Descanso terminado!'),
         content: Text(_modo == _ModoPomodoro.trabajo
-            ? 'Llevas $_rondas ${_rondas == 1 ? 'ronda' : 'rondas'} completadas. ¿Tomar un descanso?'
+            ? 'Llevas $_rondas ${_rondas == 1 ? 'ronda' : 'rondas'}. ¿Tomar un descanso?'
             : '¿Listo para otra ronda de enfoque?'),
         actions: [
           TextButton(
@@ -115,9 +133,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                       : _ModoPomodoro.descansoCorto)
                   : _ModoPomodoro.trabajo);
             },
-            child: Text(_modo == _ModoPomodoro.trabajo
-                ? 'Descansar'
-                : 'Enfocarme'),
+            child: Text(_modo == _ModoPomodoro.trabajo ? 'Descansar' : 'Enfocarme'),
           ),
           FilledButton(
             onPressed: () {
@@ -137,16 +153,102 @@ class _PomodoroScreenState extends State<PomodoroScreen>
     return '$min:$seg';
   }
 
+  void _mostrarConfiguracion() {
+    final provider = context.read<AppProvider>();
+    int trabajo = provider.pomodoroTrabajo;
+    int descansoCorto = provider.pomodoroDescansoCorto;
+    int descansoLargo = provider.pomodoroDescansoLargo;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setModal) => Padding(
+          padding: EdgeInsets.fromLTRB(
+              20, 20, 20, MediaQuery.of(ctx2).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.settings),
+                  const SizedBox(width: 8),
+                  Text('Configurar Pomodoro',
+                      style: Theme.of(ctx2)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _SliderRow(
+                label: 'Enfoque',
+                value: trabajo,
+                min: 5,
+                max: 60,
+                color: const Color(0xFFEF5350),
+                onChanged: (v) => setModal(() => trabajo = v),
+              ),
+              const SizedBox(height: 12),
+              _SliderRow(
+                label: 'Descanso corto',
+                value: descansoCorto,
+                min: 1,
+                max: 15,
+                color: const Color(0xFF26A69A),
+                onChanged: (v) => setModal(() => descansoCorto = v),
+              ),
+              const SizedBox(height: 12),
+              _SliderRow(
+                label: 'Descanso largo',
+                value: descansoLargo,
+                min: 5,
+                max: 30,
+                color: const Color(0xFF5C6BC0),
+                onChanged: (v) => setModal(() => descansoLargo = v),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () async {
+                    await provider.setPomodoroSettings(
+                        trabajo, descansoCorto, descansoLargo);
+                    if (ctx2.mounted) Navigator.pop(ctx2);
+                    // Reset current timer to new duration
+                    _reiniciar();
+                  },
+                  child: const Text('Guardar'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
     final color = _colores[_modo]!;
-    final progreso = 1 - (_segundosRestantes / _duracionTotal);
+    final total = _duracionActual(provider);
+    final progreso = total > 0 ? 1 - (_segundosRestantes / total) : 0.0;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pomodoro'),
         backgroundColor: color.withValues(alpha: 0.1),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Configurar tiempos',
+            onPressed: _mostrarConfiguracion,
+          ),
+        ],
       ),
       backgroundColor: color.withValues(alpha: 0.05),
       body: Column(
@@ -175,9 +277,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: sel
-                              ? Colors.white
-                              : color.withValues(alpha: 0.7),
+                          color: sel ? Colors.white : color.withValues(alpha: 0.7),
                         ),
                       ),
                     ),
@@ -191,22 +291,19 @@ class _PomodoroScreenState extends State<PomodoroScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Contador de rondas
+                // Round dots
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    4,
-                    (i) => Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color:
-                            i < (_rondas % 4) ? color : color.withValues(alpha: 0.2),
-                        shape: BoxShape.circle,
-                      ),
+                  children: List.generate(4, (i) => Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: 12, height: 12,
+                    decoration: BoxDecoration(
+                      color: i < (_rondas % 4)
+                          ? color
+                          : color.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
                     ),
-                  ),
+                  )),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -217,13 +314,12 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                 ),
                 const SizedBox(height: 40),
 
-                // Timer circular
+                // Circular timer
                 Stack(
                   alignment: Alignment.center,
                   children: [
                     SizedBox(
-                      width: 240,
-                      height: 240,
+                      width: 240, height: 240,
                       child: CircularProgressIndicator(
                         value: progreso,
                         strokeWidth: 10,
@@ -263,7 +359,7 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                 ),
                 const SizedBox(height: 48),
 
-                // Controles
+                // Controls
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -287,12 +383,10 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(_corriendo ? Icons.pause : Icons.play_arrow,
-                              size: 28),
+                          Icon(_corriendo ? Icons.pause : Icons.play_arrow, size: 28),
                           const SizedBox(width: 8),
                           Text(_corriendo ? 'Pausar' : 'Iniciar',
-                              style: const TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.w700)),
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                         ],
                       ),
                     ),
@@ -312,24 +406,79 @@ class _PomodoroScreenState extends State<PomodoroScreen>
                     ),
                   ],
                 ),
-                const SizedBox(height: 32),
-
-                // Total rondas
+                const SizedBox(height: 20),
                 Text(
                   'Total: $_rondas ${_rondas == 1 ? 'ronda completada' : 'rondas completadas'}',
                   style: TextStyle(
                       color: color.withValues(alpha: 0.6),
                       fontWeight: FontWeight.w500),
                 ),
+                const SizedBox(height: 8),
+                // Show configured durations
+                Text(
+                  '${provider.pomodoroTrabajo}m · ${provider.pomodoroDescansoCorto}m · ${provider.pomodoroDescansoLargo}m',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: color.withValues(alpha: 0.4)),
+                ),
               ],
             ),
           ),
 
-          // Materia actual (si hay seleccionada)
           if (provider.materias.isNotEmpty)
             _MateriaSelector(provider: provider, color: color),
         ],
       ),
+    );
+  }
+}
+
+class _SliderRow extends StatelessWidget {
+  final String label;
+  final int value;
+  final int min;
+  final int max;
+  final Color color;
+  final ValueChanged<int> onChanged;
+  const _SliderRow({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.color,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text('${value}m',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800, color: color, fontSize: 13)),
+            ),
+          ],
+        ),
+        Slider(
+          value: value.toDouble(),
+          min: min.toDouble(),
+          max: max.toDouble(),
+          divisions: max - min,
+          activeColor: color,
+          onChanged: (v) => onChanged(v.round()),
+        ),
+      ],
     );
   }
 }
@@ -365,16 +514,14 @@ class _MateriaSelectorState extends State<_MateriaSelector> {
               hint: const Text('Estudiando...'),
               underline: const SizedBox(),
               items: widget.provider.materias
-                  .map((m) => DropdownMenuItem(
-                      value: m.id, child: Text(m.nombre)))
+                  .map((m) => DropdownMenuItem(value: m.id, child: Text(m.nombre)))
                   .toList(),
               onChanged: (v) => setState(() => _materiaId = v),
             ),
           ),
           if (materia != null)
             Container(
-              width: 10,
-              height: 10,
+              width: 10, height: 10,
               decoration: BoxDecoration(
                 color: Color(materia.colorValue),
                 shape: BoxShape.circle,

@@ -401,6 +401,12 @@ class _CalificacionesTab extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
+        // ── Grade needed calculator ──────────────────────────
+        if (materia.notaObjetivo != null) ...[
+          _NotaNecesariaCard(materia: materia, provider: provider, color: color),
+          const SizedBox(height: 12),
+        ],
+
         if (cals.isEmpty)
           const Padding(
             padding: EdgeInsets.all(32),
@@ -432,6 +438,140 @@ class _CalificacionesTab extends StatelessWidget {
               ),
             )),
       ],
+    );
+  }
+}
+
+// ─── Nota Necesaria Card ──────────────────────────────────────────────────────
+class _NotaNecesariaCard extends StatelessWidget {
+  final Materia materia;
+  final AppProvider provider;
+  final Color color;
+  const _NotaNecesariaCard(
+      {required this.materia, required this.provider, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final objetivo = materia.notaObjetivo!;
+    final necesaria = provider.notaNecesaria(materia.id, objetivo * 10);
+    final promedio = provider.promedioMateria(materia.id);
+    final cals = provider.calificacionesDeMateria(materia.id);
+    final porcentajeActual = cals.fold(0.0, (s, c) => s + c.porcentaje);
+    final restante = (100.0 - porcentajeActual).clamp(0.0, 100.0);
+    final theme = Theme.of(context);
+
+    final yaAlcanzo = promedio >= objetivo * 10;
+    final imposible = necesaria != null && necesaria > 100;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: yaAlcanzo
+            ? Colors.green.withValues(alpha: 0.08)
+            : imposible
+                ? Colors.red.withValues(alpha: 0.08)
+                : color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: yaAlcanzo
+              ? Colors.green.withValues(alpha: 0.3)
+              : imposible
+                  ? Colors.red.withValues(alpha: 0.3)
+                  : color.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.calculate_outlined,
+                  size: 16,
+                  color: yaAlcanzo
+                      ? Colors.green
+                      : imposible
+                          ? Colors.red
+                          : color),
+              const SizedBox(width: 6),
+              Text('Calculadora de nota',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: yaAlcanzo
+                          ? Colors.green
+                          : imposible
+                              ? Colors.red
+                              : color)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (restante <= 0) ...[
+            Text('Ya no quedan porcentajes por evaluar.',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant)),
+          ] else if (yaAlcanzo) ...[
+            Text('¡Ya alcanzaste tu objetivo de ${objetivo.toStringAsFixed(1)}!',
+                style: const TextStyle(
+                    color: Colors.green,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13)),
+            const SizedBox(height: 4),
+            Text('Promedio actual: ${(promedio / 10).toStringAsFixed(2)}',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant)),
+          ] else if (imposible) ...[
+            Text('No es posible alcanzar ${objetivo.toStringAsFixed(1)} con el $restante% restante.',
+                style: const TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13)),
+          ] else if (necesaria != null) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Necesitas sacar',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant)),
+                      Text(
+                        (necesaria / 10).toStringAsFixed(2),
+                        style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            color: color),
+                      ),
+                      Text('en el $restante% restante',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('Objetivo: ${objetivo.toStringAsFixed(1)}',
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w600)),
+                    Text('Actual: ${(promedio / 10).toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 11)),
+                  ],
+                ),
+              ],
+            ),
+          ] else ...[
+            Text('Agrega calificaciones para ver qué nota necesitas.',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant)),
+          ],
+        ],
+      ),
     );
   }
 }

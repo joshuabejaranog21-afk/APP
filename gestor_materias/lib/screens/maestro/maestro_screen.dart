@@ -4,6 +4,7 @@ import '../../providers/app_provider.dart';
 import '../../models/grupo.dart';
 import '../../models/tarea.dart';
 import 'grupo_form.dart';
+import 'grupo_detail_screen.dart';
 import 'anuncio_form.dart';
 import 'asignar_tarea_screen.dart';
 
@@ -44,6 +45,18 @@ class _MaestroScreenState extends State<MaestroScreen>
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.data_object),
+            tooltip: 'Recargar datos de prueba',
+            onPressed: () async {
+              await context.read<AppProvider>().seedDatosDePrueba();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('¡Datos recargados!'), backgroundColor: Colors.green),
+                );
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.swap_horiz),
             tooltip: 'Cambiar a modo alumno',
@@ -174,6 +187,8 @@ class _GrupoCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => GrupoDetailScreen(grupo: grupo))),
         leading: CircleAvatar(
           backgroundColor: color.withValues(alpha: 0.2),
           child: Text(
@@ -182,7 +197,7 @@ class _GrupoCard extends StatelessWidget {
           ),
         ),
         title: Text(grupo.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: grupo.descripcion.isNotEmpty ? Text(grupo.descripcion) : null,
+        subtitle: grupo.descripcion.isNotEmpty ? Text(grupo.descripcion, maxLines: 1, overflow: TextOverflow.ellipsis) : null,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
