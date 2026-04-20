@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 import '../../models/estudio_pdf.dart';
 import '../../providers/app_provider.dart';
@@ -17,10 +18,12 @@ class PDFViewerScreen extends StatefulWidget {
 
 class _PDFViewerScreenState extends State<PDFViewerScreen> {
   late EstudioPDF _pdf;
-  PDFViewController? _pdfController;
-  int _paginaActual = 0;
+  final PdfViewerController _pdfController = PdfViewerController();
+  int _paginaActual = 0; // 0-indexed internally para compatibilidad con notas
   int _totalPaginas = 0;
-  bool _cargando = true;
+
+  // Texto seleccionado actualmente (para resaltar / leer / preguntar IA)
+  String _textoSeleccionado = '';
 
   // TTS
   final FlutterTts _tts = FlutterTts();
@@ -82,11 +85,16 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
       setState(() => _leyendo = false);
       return;
     }
-    final notas = _pdf.notasDePagina(_paginaActual);
-    if (notas.isEmpty) {
-      _textoTTS = 'No hay notas en esta página. Agrega texto en el panel de notas para escucharlo.';
+    // Si hay texto seleccionado, léelo; si no, usa las notas de la página
+    if (_textoSeleccionado.trim().isNotEmpty) {
+      _textoTTS = _textoSeleccionado;
     } else {
-      _textoTTS = notas.map((n) => n.texto).join('. ');
+      final notas = _pdf.notasDePagina(_paginaActual);
+      if (notas.isEmpty) {
+        _textoTTS = 'Selecciona texto en el PDF o agrega notas en esta página para escucharlas.';
+      } else {
+        _textoTTS = notas.map((n) => n.texto).join('. ');
+      }
     }
     setState(() => _leyendo = true);
     await _tts.speak(_textoTTS);
@@ -97,6 +105,28 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     setState(() => _leyendo = true);
     _textoTTS = texto;
     await _tts.speak(texto);
+  }
+
+  // ── Resaltar / guardar selección como nota ────────────────────
+  void _resaltarSeleccion({bool comoResaltado = true}) {
+    final texto = _textoSeleccionado.trim();
+    if (texto.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona texto en el PDF primero')),
+      );
+      return;
+    }
+    final nota = NotaPDF(
+      pagina: _paginaActual,
+      texto: texto,
+      colorHex: '#FFFF00',
+      esResaltado: comoResaltado,
+    );
+    setState(() => _pdf.notas.add(nota));
+    _guardarProgreso();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(comoResaltado ? 'Resaltado guardado' : 'Nota guardada')),
+    );
   }
 
   // ── Pomodoro ──────────────────────────────────────────────────
@@ -155,9 +185,12 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     });
     _scrollAI();
 
-    final contexto = _pdf.resumenNotas.isNotEmpty
+    final contextoBase = _pdf.resumenNotas.isNotEmpty
         ? _pdf.resumenNotas
         : 'El estudiante está leyendo "${_pdf.titulo}", página ${_paginaActual + 1} de $_totalPaginas.';
+    final contexto = _textoSeleccionado.trim().isNotEmpty
+        ? '$contextoBase\n\nTexto seleccionado por el estudiante en esta página:\n"${_textoSeleccionado.trim()}"'
+        : contextoBase;
 
     final respuesta = await ClaudeService.preguntarSobrePDF(
       apiKey: apiKey,
@@ -196,6 +229,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
     final theme = Theme.of(context);
     final provider = context.watch<AppProvider>();
     final notasPagina = _pdf.notasDePagina(_paginaActual);
+    final tieneSeleccion = _textoSeleccionado.trim().isNotEmpty;
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
@@ -217,34 +251,97 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
           // ── PDF Viewer ────────────────────────────────────────
           Positioned.fill(
             bottom: 72,
-            child: _cargando
-                ? const Center(child: CircularProgressIndicator())
-                : PDFView(
-                    filePath: _pdf.rutaLocal,
-                    defaultPage: _paginaActual,
-                    enableSwipe: true,
-                    swipeHorizontal: false,
-                    autoSpacing: false,
-                    pageFling: true,
-                    onRender: (pages) {
-                      setState(() {
-                        _totalPaginas = pages ?? 0;
-                        _cargando = false;
-                      });
-                    },
-                    onViewCreated: (ctrl) => _pdfController = ctrl,
-                    onPageChanged: (page, total) {
-                      setState(() {
-                        _paginaActual = page ?? 0;
-                        _totalPaginas = total ?? 0;
-                      });
-                    },
-                    onError: (_) => setState(() => _cargando = false),
-                  ),
+            child: PdfViewer.file(
+              _pdf.rutaLocal,
+              controller: _pdfController,
+              initialPageNumber: _paginaActual + 1, // pdfrx es 1-indexed
+              params: PdfViewerParams(
+                enableTextSelection: true,
+                onDocumentChanged: (doc) {
+                  if (doc != null) {
+                    setState(() => _totalPaginas = doc.pages.length);
+                  }
+                },
+                onPageChanged: (pageNumber) {
+                  if (pageNumber == null) return;
+                  setState(() => _paginaActual = pageNumber - 1);
+                },
+                onTextSelectionChange: (selections) {
+                  final buf = StringBuffer();
+                  for (final s in selections) {
+                    buf.write(s.text);
+                    buf.write(' ');
+                  }
+                  final nuevo = buf.toString().trim();
+                  if (nuevo != _textoSeleccionado) {
+                    setState(() => _textoSeleccionado = nuevo);
+                  }
+                },
+                loadingBannerBuilder: (context, bytesDownloaded, totalBytes) {
+                  return const Center(child: CircularProgressIndicator());
+                },
+                errorBannerBuilder: (context, error, stackTrace, documentRef) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text('Error al cargar PDF: $error',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.red)),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
 
+          // ── Barra contextual de selección ─────────────────────
+          if (tieneSeleccion)
+            Positioned(
+              top: 12, left: 12, right: 12,
+              child: Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(12),
+                color: theme.colorScheme.primary,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Row(children: [
+                    const Icon(Icons.format_quote, color: Colors.white, size: 16),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _textoSeleccionado,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Copiar',
+                      icon: const Icon(Icons.copy, color: Colors.white, size: 18),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: _textoSeleccionado));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Copiado')),
+                        );
+                      },
+                    ),
+                    IconButton(
+                      tooltip: 'Resaltar',
+                      icon: const Icon(Icons.highlight, color: Colors.white, size: 18),
+                      onPressed: () => _resaltarSeleccion(comoResaltado: true),
+                    ),
+                    IconButton(
+                      tooltip: 'Guardar como nota',
+                      icon: const Icon(Icons.sticky_note_2, color: Colors.white, size: 18),
+                      onPressed: () => _resaltarSeleccion(comoResaltado: false),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+
           // ── Indicador de notas en página ──────────────────────
-          if (notasPagina.isNotEmpty)
+          if (notasPagina.isNotEmpty && !tieneSeleccion)
             Positioned(
               top: 12, right: 12,
               child: GestureDetector(
@@ -268,7 +365,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
           // ── Pomodoro flotante ─────────────────────────────────
           if (_pomodoroVisible)
             Positioned(
-              top: 12, left: 12,
+              top: tieneSeleccion ? 60 : 12,
+              left: 12,
               child: _PomodoroWidget(
                 tiempo: _formatPomodoro(),
                 activo: _pomodoroActivo,
@@ -289,6 +387,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
                 ctrl: _aiCtrl,
                 scrollCtrl: _aiScrollCtrl,
                 apiKey: provider.claudeApiKey,
+                textoSeleccionado: _textoSeleccionado,
                 onEnviar: _enviarPregunta,
                 onClose: () => setState(() => _aiVisible = false),
                 onConfigApiKey: () => _mostrarDialogoApiKey(context, provider),
@@ -528,12 +627,14 @@ class _AIPanel extends StatelessWidget {
   final TextEditingController ctrl;
   final ScrollController scrollCtrl;
   final String apiKey;
+  final String textoSeleccionado;
   final VoidCallback onEnviar, onClose, onConfigApiKey;
   final void Function(String) onLeer;
 
   const _AIPanel({
     required this.mensajes, required this.cargando, required this.ctrl,
     required this.scrollCtrl, required this.apiKey,
+    required this.textoSeleccionado,
     required this.onEnviar, required this.onClose, required this.onConfigApiKey,
     required this.onLeer,
   });
@@ -566,6 +667,31 @@ class _AIPanel extends StatelessWidget {
             IconButton(icon: const Icon(Icons.close, size: 18), onPressed: onClose),
           ]),
         ),
+        // Chip con texto seleccionado
+        if (textoSeleccionado.trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.purple.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.purple.withValues(alpha: 0.3)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.format_quote, size: 12, color: Colors.purple),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    textoSeleccionado,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: Colors.purple, fontStyle: FontStyle.italic),
+                  ),
+                ),
+              ]),
+            ),
+          ),
         // Mensajes
         Expanded(
           child: mensajes.isEmpty

@@ -47,7 +47,7 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   timezone: ^0.9.4
   # PDF study module
-  flutter_pdfview: ^1.4.4
+  pdfrx: ^1.0.106
   flutter_tts: ^4.0.2
   file_picker: ^8.0.0+1
   path_provider: ^2.1.3

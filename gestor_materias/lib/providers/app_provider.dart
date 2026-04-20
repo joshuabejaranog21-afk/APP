@@ -441,10 +441,15 @@ class AppProvider extends ChangeNotifier {
     _pdfs.add(pdf);
     notifyListeners();
     await _guardar();
-    // Sync to Supabase Storage in background
+    // Sync to Supabase Storage truly in background — don't block the caller
+    _sincronizarPDFSupabase(pdf);
+  }
+
+  Future<void> _sincronizarPDFSupabase(EstudioPDF pdf) async {
     try {
       final storagePath = '${pdf.id}.pdf';
-      final url = await PDFsStorageApi.subirArchivo(pdf.rutaLocal, storagePath);
+      final url = await PDFsStorageApi.subirArchivo(pdf.rutaLocal, storagePath)
+          .timeout(const Duration(seconds: 60));
       final pdfConUrl = EstudioPDF(
         id: pdf.id,
         titulo: pdf.titulo,
