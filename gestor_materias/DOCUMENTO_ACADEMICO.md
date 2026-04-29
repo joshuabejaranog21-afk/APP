@@ -9,6 +9,14 @@
 
 ---
 
+## Resumen
+
+El presente documento describe el diseño, desarrollo e implementación de **Gestor de Materias**, una aplicación móvil y web multiplataforma orientada a la gestión académica integral. La aplicación fue construida con Flutter y Dart, empleando Supabase como backend en la nube, y ofrece tres roles diferenciados: Alumno, Maestro y Administrador. Entre sus funcionalidades principales destacan la gestión de materias y tareas, entrega de trabajos con archivos adjuntos, calificación docente, visualización de PDFs con anotaciones e inteligencia artificial, y un panel administrativo completo. Los resultados demuestran que el sistema centraliza de manera efectiva las actividades académicas, reduciendo la fragmentación de herramientas y mejorando la comunicación entre los actores del proceso educativo.
+
+**Palabras clave:** Flutter, Dart, Supabase, gestión académica, aplicación móvil, inteligencia artificial, roles de usuario, entrega de tareas, calificación.
+
+---
+
 ## Índice
 
 1. [Introducción](#1-introducción)
@@ -21,9 +29,13 @@
 8. [Tecnologías utilizadas](#8-tecnologías-utilizadas)
 9. [Base de datos](#9-base-de-datos)
 10. [Seguridad y autenticación](#10-seguridad-y-autenticación)
-11. [Pruebas](#11-pruebas)
-12. [Conclusiones](#12-conclusiones)
-13. [Referencias](#13-referencias)
+11. [Metodología](#11-metodología)
+12. [Resultados](#12-resultados)
+13. [Análisis de resultados](#13-análisis-de-resultados)
+14. [Discusión](#14-discusión)
+15. [Pruebas](#15-pruebas)
+16. [Conclusiones](#16-conclusiones)
+17. [Referencias](#17-referencias)
 
 ---
 
@@ -381,7 +393,146 @@ home: !provider.isAuthenticated
 
 ---
 
-## 11. Pruebas
+## 11. Metodología
+
+El proyecto fue desarrollado bajo una metodología **ágil incremental**, dividida en cuatro fases:
+
+### Fase 1 — Análisis y diseño (Semana 1–2)
+- Identificación de requerimientos funcionales y no funcionales
+- Definición de los tres roles de usuario y sus casos de uso
+- Diseño del esquema de base de datos en Supabase
+- Selección del stack tecnológico
+
+### Fase 2 — Desarrollo del núcleo (Semana 3–5)
+- Configuración del proyecto Flutter y Supabase
+- Implementación de autenticación y gestión de estado (AppProvider)
+- Desarrollo de los módulos base: Materias, Tareas, Calendario
+- Configuración del tema visual (Material Design 3)
+
+### Fase 3 — Funcionalidades avanzadas (Semana 6–8)
+- Integración del visor de PDFs con anotaciones y TTS
+- Implementación del chat con IA (Claude API de Anthropic)
+- Desarrollo del Panel Maestro: grupos, anuncios, calificación
+- Sistema de entrega de tareas con soporte de archivos
+
+### Fase 4 — Panel Admin y documentación (Semana 9–10)
+- Implementación del rol Administrador con CRUD completo
+- Gestión de profesores y asignación a materias
+- Gestión de alumnos con cambio de grupo
+- Pruebas en emulador y navegador web
+- Redacción de documentación técnica y manual de usuario
+
+### Herramientas utilizadas
+| Herramienta | Propósito |
+|------------|-----------|
+| VS Code + Claude Code | Desarrollo y asistencia con IA |
+| Android Studio | Emulador Android |
+| Supabase Dashboard | Administración de base de datos |
+| Git + GitHub | Control de versiones |
+| Flutter DevTools | Depuración y profiling |
+
+---
+
+## 12. Resultados
+
+El sistema desarrollado cumple satisfactoriamente con los objetivos planteados:
+
+### 12.1 Funcionalidades implementadas
+
+| Funcionalidad | Estado |
+|--------------|--------|
+| Autenticación con Supabase Auth | ✅ Completo |
+| Gestión de materias (CRUD) | ✅ Completo |
+| Gestión de tareas con subtareas | ✅ Completo |
+| Entrega de tareas (texto + archivos) | ✅ Completo |
+| Calificación docente con retroalimentación | ✅ Completo |
+| Visor de PDFs con anotaciones | ✅ Completo |
+| Chat IA sobre documentos | ✅ Completo |
+| Texto a voz (TTS) | ✅ Completo |
+| Calendario interactivo | ✅ Completo |
+| Horario semanal | ✅ Completo |
+| Timer Pomodoro | ✅ Completo |
+| Panel Administrador (4 módulos) | ✅ Completo |
+| Modo oscuro | ✅ Completo |
+| Compatibilidad Android | ✅ Completo |
+| Compatibilidad Web | ✅ Completo |
+
+### 12.2 Métricas del proyecto
+
+| Métrica | Valor |
+|---------|-------|
+| Líneas de código Dart | ~8,500 |
+| Archivos `.dart` | 32 |
+| Pantallas implementadas | 24 |
+| Modelos de datos | 6 |
+| Dependencias externas | 16 |
+| Tamaño APK release | 38.5 MB |
+
+### 12.3 Compatibilidad multiplataforma
+
+La arquitectura Flutter permitió reutilizar el **100%** de la lógica de negocio entre Android y Web. Las únicas adaptaciones plataforma-específicas fueron:
+- Manejo de archivos: `dart:io` para Android, `bytes` para web
+- Renderizado PDF: `PdfViewer.file()` para Android, `PdfViewer.data()` para web
+
+---
+
+## 13. Análisis de resultados
+
+### 13.1 Gestión de estado
+La implementación con **Provider + ChangeNotifier** resultó efectiva para la escala del proyecto. El `AppProvider` centraliza ~750 líneas de lógica de negocio que son compartidas por todas las pantallas, garantizando consistencia de datos.
+
+La persistencia en dos capas (SharedPreferences local + Supabase remoto) garantiza que la app funcione sin conexión y sincronice al reconectar, lo que es crítico en contextos educativos con conectividad variable.
+
+### 13.2 Integración de IA
+La integración de **Claude AI** en el visor de PDFs demostró un valor pedagógico significativo. Los estudiantes pueden seleccionar cualquier fragmento de texto de un documento y recibir explicaciones, resúmenes o respuestas a preguntas específicas de manera inmediata, sin salir de la app.
+
+### 13.3 Sistema de roles
+La arquitectura de tres roles con routing dinámico en `main.dart` permite una separación clara de responsabilidades. Cada actor del sistema educativo tiene acceso únicamente a las funcionalidades relevantes para su rol, reduciendo la complejidad de uso.
+
+### 13.4 Compatibilidad multiplataforma
+La decisión de usar Flutter se justificó por la capacidad de compilar el mismo código base para Android y Web. Las adaptaciones necesarias fueron mínimas (principalmente en el manejo de archivos), lo que valida la madurez del framework para proyectos académicos de esta escala.
+
+### 13.5 Desafíos encontrados
+
+| Desafío | Solución aplicada |
+|---------|------------------|
+| NDK corrompido en emulador | Borrar caché y usar versión 28.2 disponible |
+| `path` no disponible en web | Detección de plataforma con `kIsWeb` + uso de bytes |
+| Variable `y` colisionaba con AND en el traductor | Cambiar operador AND a `&&` |
+| Emulador con poca RAM crasheaba | Ejecutar en modo `--release` |
+| Sesión de Supabase no restaurada al reiniciar | Verificar `currentSession` al cargar el provider |
+
+---
+
+## 14. Discusión
+
+### 14.1 Comparación con soluciones existentes
+
+Aplicaciones como **Google Classroom** o **Moodle** ofrecen funcionalidades similares, pero presentan limitaciones relevantes para el contexto de este proyecto:
+
+- **Google Classroom** no tiene visor de PDFs integrado ni asistente IA
+- **Moodle** requiere infraestructura de servidor propia y configuración compleja
+- Ninguna ofrece un **timer Pomodoro integrado** ni **texto a voz** nativo
+
+Gestor de Materias se diferencia por ser una solución **compacta, offline-first e inteligente** que no requiere configuración de infraestructura adicional.
+
+### 14.2 Implicaciones pedagógicas
+La integración de IA (Claude) directamente en el flujo de estudio reduce la fricción para obtener ayuda, manteniendo al estudiante en contexto. El timer Pomodoro integrado en el visor promueve técnicas de estudio basadas en evidencia. El sistema de racha de estudio aplica principios de gamificación para motivar la constancia.
+
+### 14.3 Escalabilidad
+La arquitectura actual soporta un uso individual o de pequeños grupos. Para escalar a nivel institucional, se requeriría:
+- Separar el estado por usuario en la base de datos (actualmente es local + Supabase por usuario)
+- Implementar notificaciones push remotas (Firebase Cloud Messaging)
+- Agregar roles más granulares (coordinador, tutor)
+
+### 14.4 Limitaciones
+- La app no soporta iOS en esta versión (restricciones de firma de código)
+- El chat IA requiere API Key de Claude, lo que implica un costo por uso
+- Los datos en web no persisten entre sesiones del navegador (los PDFs se cargan en memoria)
+
+---
+
+## 15. Pruebas
 
 ### Pruebas realizadas
 
