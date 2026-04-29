@@ -1,5 +1,46 @@
 enum EstadoTarea { pendiente, enProgreso, entregada }
 
+class EntregaTarea {
+  final String texto;
+  final List<String> archivos;
+  final DateTime fecha;
+  double? calificacion;       // 0.0 – 10.0, null = sin calificar
+  String retroalimentacion;
+  DateTime? fechaCalificacion;
+
+  EntregaTarea({
+    this.texto = '',
+    List<String>? archivos,
+    DateTime? fecha,
+    this.calificacion,
+    this.retroalimentacion = '',
+    this.fechaCalificacion,
+  })  : archivos = archivos ?? [],
+        fecha = fecha ?? DateTime.now();
+
+  bool get calificada => calificacion != null;
+
+  Map<String, dynamic> toJson() => {
+        'texto': texto,
+        'archivos': archivos,
+        'fecha': fecha.toIso8601String(),
+        'calificacion': calificacion,
+        'retroalimentacion': retroalimentacion,
+        'fechaCalificacion': fechaCalificacion?.toIso8601String(),
+      };
+
+  factory EntregaTarea.fromJson(Map<String, dynamic> j) => EntregaTarea(
+        texto: j['texto'] ?? '',
+        archivos: List<String>.from(j['archivos'] ?? []),
+        fecha: DateTime.tryParse(j['fecha'] ?? '') ?? DateTime.now(),
+        calificacion: (j['calificacion'] as num?)?.toDouble(),
+        retroalimentacion: j['retroalimentacion'] ?? '',
+        fechaCalificacion: j['fechaCalificacion'] != null
+            ? DateTime.tryParse(j['fechaCalificacion'])
+            : null,
+      );
+}
+
 enum PrioridadTarea { baja, media, alta }
 
 class SubtareaItem {
@@ -35,6 +76,7 @@ class Tarea {
   List<SubtareaItem> subtareas;
   bool esRecurrente;
   DateTime? completadaEn;
+  EntregaTarea? entrega;
 
   Tarea({
     required this.id,
@@ -52,6 +94,7 @@ class Tarea {
     List<SubtareaItem>? subtareas,
     this.esRecurrente = false,
     this.completadaEn,
+    this.entrega,
   })  : fechaCreacion = fechaCreacion ?? DateTime.now(),
         subtareas = subtareas ?? [];
 
@@ -86,6 +129,7 @@ class Tarea {
         'subtareas': subtareas.map((s) => s.toJson()).toList(),
         'esRecurrente': esRecurrente,
         'completadaEn': completadaEn?.toIso8601String(),
+        'entrega': entrega?.toJson(),
       };
 
   factory Tarea.fromJson(Map<String, dynamic> json) => Tarea(
@@ -108,6 +152,9 @@ class Tarea {
         esRecurrente: json['esRecurrente'] == true,
         completadaEn: json['completadaEn'] != null
             ? DateTime.tryParse(json['completadaEn'])
+            : null,
+        entrega: json['entrega'] != null
+            ? EntregaTarea.fromJson(json['entrega'] as Map<String, dynamic>)
             : null,
       );
 }

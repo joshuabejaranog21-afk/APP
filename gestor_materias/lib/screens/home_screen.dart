@@ -8,7 +8,7 @@ import 'materias/materias_screen.dart';
 import 'tareas/tareas_screen.dart';
 import 'tareas/tarea_form.dart';
 import 'horario/horario_screen.dart';
-import 'estadisticas/estadisticas_screen.dart';
+import 'calendario/calendario_screen.dart';
 import 'pomodoro/pomodoro_screen.dart';
 import 'maestro/maestro_screen.dart';
 import 'perfil/perfil_screen.dart';
@@ -29,7 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
     MateriasScreen(),
     TareasScreen(),
     PDFsScreen(),
-    EstadisticasScreen(),
+    CalendarioScreen(),
   ];
 
   @override
@@ -49,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
           NavigationDestination(icon: Icon(Icons.school_outlined), selectedIcon: Icon(Icons.school), label: 'Materias'),
           NavigationDestination(icon: Icon(Icons.task_outlined), selectedIcon: Icon(Icons.task), label: 'Tareas'),
           NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'PDFs'),
-          NavigationDestination(icon: Icon(Icons.bar_chart_outlined), selectedIcon: Icon(Icons.bar_chart), label: 'Stats'),
+          NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: 'Calendario'),
         ],
       ),
     );
@@ -68,12 +68,17 @@ class _DashboardTab extends StatelessWidget {
     const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
+    final userName = provider.userName;
+    final saludo = userName.isNotEmpty && userName != 'Invitado'
+        ? 'Hola, ${userName.split(' ').first}! 👋'
+        : 'Buenos días 👋';
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Buenos días 👋',
+            Text(saludo,
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             Text(
@@ -141,6 +146,7 @@ class _DashboardTab extends StatelessWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'dashboard_fab',
         onPressed: () => showModalBottomSheet(
           context: context,
           isScrollControlled: true,
@@ -157,6 +163,10 @@ class _DashboardTab extends StatelessWidget {
         children: [
           // ── Resumen cards ──────────────────────────────────
           _ResumenCards(provider: provider),
+          const SizedBox(height: 16),
+
+          // ── Frase del día ──────────────────────────────────
+          const _FraseDelDia(),
           const SizedBox(height: 16),
 
           // ── Streak card ────────────────────────────────────
@@ -605,6 +615,78 @@ class _EmptyDashboard extends StatelessWidget {
               style: theme.textTheme.bodyMedium
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Frase del día ───────────────────────────────────────────────────────────
+class _FraseDelDia extends StatelessWidget {
+  const _FraseDelDia();
+
+  static const _frases = [
+    'El éxito es la suma de pequeños esfuerzos repetidos día a día.',
+    'No estudies para aprobar. Estudia para aprender.',
+    'Cada experto fue una vez un principiante.',
+    'El conocimiento crece cuando se comparte.',
+    'La constancia vence al talento cuando el talento no trabaja.',
+    'Tu futuro se crea por lo que haces hoy, no mañana.',
+    'Disciplina es recordar lo que quieres.',
+    'No hay atajos para ningún lugar que valga la pena.',
+    'El estudio es la llave que abre todas las puertas.',
+    'Invierte en tu mente. Es el mejor rendimiento posible.',
+    'Aprende como si fueras a vivir para siempre.',
+    'No te compares con otros. Compárate con quien eras ayer.',
+    'Los retos de hoy son los triunfos de mañana.',
+    'Perseverar es la clave del éxito académico.',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final diaDelAnio = DateTime.now()
+        .difference(DateTime(DateTime.now().year))
+        .inDays;
+    final frase = _frases[diaDelAnio % _frases.length];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          const Text('💡', style: TextStyle(fontSize: 22)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Frase del día',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.primary,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '"$frase"',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontStyle: FontStyle.italic,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

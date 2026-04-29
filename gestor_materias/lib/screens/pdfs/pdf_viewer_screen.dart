@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -251,7 +252,29 @@ class _PDFViewerScreenState extends State<PDFViewerScreen> {
           // ── PDF Viewer ────────────────────────────────────────
           Positioned.fill(
             bottom: 72,
-            child: PdfViewer.file(
+            child: kIsWeb && _pdf.bytes != null
+                ? PdfViewer.data(
+                    _pdf.bytes!,
+                    controller: _pdfController,
+                    initialPageNumber: _paginaActual + 1,
+                    sourceName: _pdf.titulo,
+                    params: PdfViewerParams(
+                      enableTextSelection: true,
+                      onDocumentChanged: (doc) {
+                        if (doc != null) setState(() => _totalPaginas = doc.pages.length);
+                      },
+                      onPageChanged: (pageNumber) {
+                        if (pageNumber == null) return;
+                        setState(() => _paginaActual = pageNumber - 1);
+                      },
+                      onTextSelectionChange: (selections) {
+                        final buf = StringBuffer();
+                        for (final s in selections) { buf.write(s.text); buf.write(' '); }
+                        setState(() => _textoSeleccionado = buf.toString().trim());
+                      },
+                    ),
+                  )
+                : PdfViewer.file(
               _pdf.rutaLocal,
               controller: _pdfController,
               initialPageNumber: _paginaActual + 1, // pdfrx es 1-indexed

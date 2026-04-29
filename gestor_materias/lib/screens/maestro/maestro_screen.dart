@@ -7,6 +7,7 @@ import 'grupo_form.dart';
 import 'grupo_detail_screen.dart';
 import 'anuncio_form.dart';
 import 'asignar_tarea_screen.dart';
+import 'calificar_entrega_screen.dart';
 
 class MaestroScreen extends StatefulWidget {
   const MaestroScreen({super.key});
@@ -22,7 +23,7 @@ class _MaestroScreenState extends State<MaestroScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -42,6 +43,7 @@ class _MaestroScreenState extends State<MaestroScreen>
             Tab(icon: Icon(Icons.groups_outlined), text: 'Grupos'),
             Tab(icon: Icon(Icons.campaign_outlined), text: 'Anuncios'),
             Tab(icon: Icon(Icons.assignment_outlined), text: 'Tareas'),
+            Tab(icon: Icon(Icons.grading_outlined), text: 'Calificar'),
           ],
         ),
         actions: [
@@ -70,6 +72,7 @@ class _MaestroScreenState extends State<MaestroScreen>
           _GruposTab(),
           _AnunciosTab(),
           _TareasAsignadasTab(),
+          _CalificarTab(),
         ],
       ),
       floatingActionButton: _FabPorTab(tabController: _tabController),
@@ -489,4 +492,204 @@ class AnuncioCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _AnuncioCard(anuncio: anuncio, esMaestro: false);
+}
+
+// ─── Tab Calificar ─────────────────────────────────────────────────────────────
+class _CalificarTab extends StatelessWidget {
+  const _CalificarTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<AppProvider>();
+    final theme = Theme.of(context);
+
+    // Todas las tareas entregadas
+    final entregadas = provider.tareas
+        .where((t) => t.estado == EstadoTarea.entregada)
+        .toList()
+      ..sort((a, b) {
+        // Sin calificar primero
+        final aCalif = a.entrega?.calificada ?? false;
+        final bCalif = b.entrega?.calificada ?? false;
+        if (aCalif != bCalif) return aCalif ? 1 : -1;
+        return (b.completadaEn ?? b.fechaLimite)
+            .compareTo(a.completadaEn ?? a.fechaLimite);
+      });
+
+    final pendientes = entregadas.where((t) => !(t.entrega?.calificada ?? false)).toList();
+    final calificadas = entregadas.where((t) => t.entrega?.calificada ?? false).toList();
+
+    if (entregadas.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.grading_outlined, size: 64,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.2)),
+            const SizedBox(height: 12),
+            Text('No hay tareas entregadas aún',
+                style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+          ],
+        ),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        // ── Pendientes de calificar ──────────────────────────
+        if (pendientes.isNotEmpty) ...[
+          _SeccionHeader(
+            titulo: 'Por calificar',
+            count: pendientes.length,
+            color: Colors.orange,
+          ),
+          const SizedBox(height: 8),
+          ...pendientes.map((t) => _CalificarCard(tarea: t)),
+          const SizedBox(height: 16),
+        ],
+
+        // ── Ya calificadas ───────────────────────────────────
+        if (calificadas.isNotEmpty) ...[
+          _SeccionHeader(
+            titulo: 'Calificadas',
+            count: calificadas.length,
+            color: Colors.green,
+          ),
+          const SizedBox(height: 8),
+          ...calificadas.map((t) => _CalificarCard(tarea: t)),
+        ],
+      ],
+    );
+  }
+}
+
+class _SeccionHeader extends StatelessWidget {
+  final String titulo;
+  final int count;
+  final Color color;
+  const _SeccionHeader({required this.titulo, required this.count, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(titulo,
+              style: TextStyle(fontWeight: FontWeight.w700, color: color, fontSize: 13)),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
+            child: Text('$count',
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+          ),
+        ]),
+      ),
+    ]);
+  }
+}
+
+class _CalificarCard extends StatelessWidget {
+  final Tarea tarea;
+  const _CalificarCard({required this.tarea});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final entrega = tarea.entrega;
+    final calificada = entrega?.calificada ?? false;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => CalificarEntregaScreen(tarea: tarea)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              // Indicador calificación
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: calificada
+                      ? _colorNota(entrega!.calificacion!).withValues(alpha: 0.15)
+                      : Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: calificada
+                      ? Text(
+                          entrega!.calificacion!.toStringAsFixed(1),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                            color: _colorNota(entrega.calificacion!),
+                          ),
+                        )
+                      : Icon(Icons.rate_review_outlined,
+                          color: Colors.orange.shade600, size: 22),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Info tarea
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tarea.titulo,
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 3),
+                    Row(children: [
+                      Text('${tarea.tipo.emoji} ${tarea.tipo.label}',
+                          style: const TextStyle(fontSize: 11)),
+                      if (entrega != null && entrega.archivos.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Icon(Icons.attach_file, size: 11,
+                            color: theme.colorScheme.onSurfaceVariant),
+                        Text('${entrega.archivos.length}',
+                            style: TextStyle(fontSize: 11,
+                                color: theme.colorScheme.onSurfaceVariant)),
+                      ],
+                    ]),
+                    if (calificada && entrega!.retroalimentacion.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(entrega.retroalimentacion,
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11,
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontStyle: FontStyle.italic)),
+                    ],
+                  ],
+                ),
+              ),
+
+              // Chevron
+              Icon(Icons.chevron_right,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _colorNota(double n) {
+    if (n >= 9) return Colors.green.shade600;
+    if (n >= 7) return Colors.blue.shade600;
+    if (n >= 6) return Colors.orange.shade600;
+    return Colors.red.shade600;
+  }
 }

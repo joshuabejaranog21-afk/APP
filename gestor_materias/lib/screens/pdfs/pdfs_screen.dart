@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
@@ -57,24 +58,30 @@ class PDFsScreen extends StatelessWidget {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
+      withData: kIsWeb,
     );
-    if (result == null || result.files.single.path == null) return;
+    if (result == null) return;
 
-    final srcPath = result.files.single.path!;
-    final nombre = result.files.single.name
+    final file = result.files.single;
+    final nombre = file.name
         .replaceAll('.pdf', '')
         .replaceAll('_', ' ')
         .replaceAll('-', ' ');
 
-    // Copy to app documents directory so it persists
-    final docsDir = await getApplicationDocumentsDirectory();
-    final pdfsDir = Directory('${docsDir.path}/pdfs');
-    if (!await pdfsDir.exists()) await pdfsDir.create(recursive: true);
+    EstudioPDF pdf;
+    if (kIsWeb) {
+      if (file.bytes == null) return;
+      pdf = EstudioPDF(titulo: nombre, rutaLocal: file.name, bytes: file.bytes);
+    } else {
+      if (file.path == null) return;
+      final docsDir = await getApplicationDocumentsDirectory();
+      final pdfsDir = Directory('${docsDir.path}/pdfs');
+      if (!await pdfsDir.exists()) await pdfsDir.create(recursive: true);
+      final destPath = '${pdfsDir.path}/${DateTime.now().millisecondsSinceEpoch}.pdf';
+      await File(file.path!).copy(destPath);
+      pdf = EstudioPDF(titulo: nombre, rutaLocal: destPath);
+    }
 
-    final destPath = '${pdfsDir.path}/${DateTime.now().millisecondsSinceEpoch}.pdf';
-    await File(srcPath).copy(destPath);
-
-    final pdf = EstudioPDF(titulo: nombre, rutaLocal: destPath);
     // ignore: use_build_context_synchronously
     if (!context.mounted) return;
     await provider.agregarPDF(pdf);

@@ -7,6 +7,7 @@ import '../../providers/app_provider.dart';
 import '../../models/tarea.dart';
 import '../../models/materia.dart';
 import 'tarea_form.dart';
+import 'entrega_screen.dart';
 
 enum _OrdenTareas { fecha, prioridad, tipo }
 
@@ -705,6 +706,34 @@ class _TareaCard extends StatelessWidget {
                     ],
                   ),
                 ],
+
+                // Botón de entrega
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: tarea.estado == EstadoTarea.entregada
+                      ? OutlinedButton.icon(
+                          icon: const Icon(Icons.check_circle_outline, size: 16, color: Colors.green),
+                          label: const Text('Ver entrega', style: TextStyle(color: Colors.green, fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.green),
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onPressed: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => EntregaScreen(tarea: tarea))),
+                        )
+                      : FilledButton.tonalIcon(
+                          icon: const Icon(Icons.upload_file_outlined, size: 16),
+                          label: const Text('Entregar', style: TextStyle(fontSize: 13)),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onPressed: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => EntregaScreen(tarea: tarea))),
+                        ),
+                ),
               ],
             ),
           ),

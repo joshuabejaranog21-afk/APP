@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:uuid/uuid.dart';
 
 const _uuid = Uuid();
@@ -77,6 +78,7 @@ class EstudioPDF {
   DateTime fechaAgregado;
   int ultimaPagina;
   int totalPaginas;
+  Uint8List? bytes; // web-only: in-memory PDF bytes (not persisted)
 
   EstudioPDF({
     String? id,
@@ -89,6 +91,7 @@ class EstudioPDF {
     DateTime? fechaAgregado,
     this.ultimaPagina = 0,
     this.totalPaginas = 0,
+    this.bytes,
   })  : id = id ?? _uuid.v4(),
         notas = notas ?? [],
         historialIA = historialIA ?? [],

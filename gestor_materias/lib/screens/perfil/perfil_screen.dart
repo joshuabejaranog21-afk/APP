@@ -52,8 +52,17 @@ class PerfilScreen extends StatelessWidget {
                         ),
                         shape: BoxShape.circle,
                       ),
-                      child: const Center(
-                        child: Text('🎓', style: TextStyle(fontSize: 40)),
+                      child: Center(
+                        child: Text(
+                          provider.userName.isNotEmpty
+                              ? provider.userName[0].toUpperCase()
+                              : '🎓',
+                          style: TextStyle(
+                            fontSize: provider.userName.isNotEmpty ? 38 : 40,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
                     if (racha > 0)
@@ -78,10 +87,18 @@ class PerfilScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text('Alumno',
-                    style: theme.textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
+                Text(
+                  provider.userName.isNotEmpty ? provider.userName : 'Alumno',
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+                if (provider.userEmail.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(provider.userEmail,
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: theme.colorScheme.onSurfaceVariant)),
+                ],
+                const SizedBox(height: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 4),
@@ -320,7 +337,47 @@ class PerfilScreen extends StatelessWidget {
               ),
             );
           }),
-          const SizedBox(height: 80),
+          const SizedBox(height: 24),
+
+          // ── Cerrar sesión ─────────────────────────────────
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.logout, color: Colors.red),
+              label: const Text('Cerrar sesión',
+                  style: TextStyle(color: Colors.red)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.red),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Cerrar sesión'),
+                    content: const Text(
+                        '¿Estás seguro de que quieres cerrar sesión?'),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancelar')),
+                      FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          style: FilledButton.styleFrom(
+                              backgroundColor: Colors.red),
+                          child: const Text('Cerrar sesión')),
+                    ],
+                  ),
+                );
+                if (confirm == true && context.mounted) {
+                  await context.read<AppProvider>().logout();
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 32),
         ],
       ),
     );

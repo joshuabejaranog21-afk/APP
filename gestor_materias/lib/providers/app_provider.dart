@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../models/materia.dart';
 import '../models/tarea.dart';
 import '../models/nota.dart';
 import '../models/grupo.dart';
+import '../models/profesor.dart';
 import '../models/estudio_pdf.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
@@ -19,10 +21,12 @@ class AppProvider extends ChangeNotifier {
   List<Nota> _notas = [];
   List<Calificacion> _calificaciones = [];
   List<Grupo> _grupos = [];
+  List<Profesor> _profesores = [];
   List<Anuncio> _anuncios = [];
   bool _modoOscuro = false;
   bool _cargando = false;
   bool _esMaestro = false;
+  bool _esAdmin = false;
   bool _rolSeleccionado = false;
 
   // ─── Pomodoro settings ────────────────────────────────────
@@ -37,18 +41,28 @@ class AppProvider extends ChangeNotifier {
   List<EstudioPDF> _pdfs = [];
   String _claudeApiKey = '';
 
+  // ─── Auth ──────────────────────────────────────────────────
+  String _userName = '';
+  String _userEmail = '';
+  bool _isAuthenticated = false;
+
   List<EstudioPDF> get pdfs => _pdfs;
   String get claudeApiKey => _claudeApiKey;
+  String get userName => _userName;
+  String get userEmail => _userEmail;
+  bool get isAuthenticated => _isAuthenticated;
 
   List<Materia> get materias => _materias;
   List<Tarea> get tareas => _tareas;
   List<Nota> get notas => _notas;
   List<Calificacion> get calificaciones => _calificaciones;
   List<Grupo> get grupos => _grupos;
+  List<Profesor> get profesores => _profesores;
   List<Anuncio> get anuncios => _anuncios;
   bool get modoOscuro => _modoOscuro;
   bool get cargando => _cargando;
   bool get esMaestro => _esMaestro;
+  bool get esAdmin => _esAdmin;
   bool get rolSeleccionado => _rolSeleccionado;
   int get pomodoroTrabajo => _pomodoroTrabajo;
   int get pomodoroDescansoCorto => _pomodoroDescansoCorto;
@@ -251,6 +265,19 @@ class AppProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> actualizarTarea(Tarea t) async {
+    final i = _tareas.indexWhere((x) => x.id == t.id);
+    if (i >= 0) {
+      _tareas[i] = t;
+      if (t.estado == EstadoTarea.entregada) {
+        _registrarEstudioHoy();
+        NotificationService.cancelarTarea(t.id);
+      }
+      notifyListeners();
+      await _guardar();
+    }
+  }
+
   Future<void> cambiarEstadoTarea(String id, EstadoTarea estado) async {
     final i = _tareas.indexWhere((t) => t.id == id);
     if (i >= 0) {
@@ -348,9 +375,41 @@ class AppProvider extends ChangeNotifier {
 
   String generarCalificacionId() => _uuid.v4();
 
+  // ─── Auth ──────────────────────────────────────────────────
+  Future<void> setUserInfo(String nombre, String email) async {
+    _userName = nombre;
+    _userEmail = email;
+    _isAuthenticated = true;
+    notifyListeners();
+    await _guardar();
+  }
+
+  Future<void> logout() async {
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (_) {}
+    _isAuthenticated = false;
+    _userName = '';
+    _userEmail = '';
+    _esMaestro = false;
+    _esAdmin = false;
+    _rolSeleccionado = false;
+    notifyListeners();
+    await _guardar();
+  }
+
   // ─── Rol ───────────────────────────────────────────────────
   Future<void> setRol(bool esMaestro) async {
     _esMaestro = esMaestro;
+    _esAdmin = false;
+    _rolSeleccionado = true;
+    notifyListeners();
+    await _guardar();
+  }
+
+  Future<void> setRolAdmin() async {
+    _esAdmin = true;
+    _esMaestro = false;
     _rolSeleccionado = true;
     notifyListeners();
     await _guardar();
@@ -380,7 +439,75 @@ class AppProvider extends ChangeNotifier {
     await _guardar();
   }
 
+  Future<void> agregarAlumnoAGrupo(String grupoId, AlumnoGrupo alumno) async {
+    final i = _grupos.indexWhere((g) => g.id == grupoId);
+    if (i >= 0) {
+      _grupos[i].alumnos.add(alumno);
+      notifyListeners();
+      await _guardar();
+    }
+  }
+
+  Future<void> editarAlumnoEnGrupo(String grupoId, AlumnoGrupo alumno) async {
+    final gi = _grupos.indexWhere((g) => g.id == grupoId);
+    if (gi >= 0) {
+      final ai = _grupos[gi].alumnos.indexWhere((a) => a.id == alumno.id);
+      if (ai >= 0) {
+        _grupos[gi].alumnos[ai] = alumno;
+        notifyListeners();
+        await _guardar();
+      }
+    }
+  }
+
+  Future<void> eliminarAlumnoDeGrupo(String grupoId, String alumnoId) async {
+    final i = _grupos.indexWhere((g) => g.id == grupoId);
+    if (i >= 0) {
+      _grupos[i].alumnos.removeWhere((a) => a.id == alumnoId);
+      notifyListeners();
+      await _guardar();
+    }
+  }
+
+  List<({AlumnoGrupo alumno, Grupo grupo})> get todosLosAlumnos {
+    final lista = <({AlumnoGrupo alumno, Grupo grupo})>[];
+    for (final g in _grupos) {
+      for (final a in g.alumnos) {
+        lista.add((alumno: a, grupo: g));
+      }
+    }
+    lista.sort((a, b) => a.alumno.nombre.compareTo(b.alumno.nombre));
+    return lista;
+  }
+
   String generarGrupoId() => _uuid.v4();
+
+  // ─── Profesores ────────────────────────────────────────────
+  Future<void> agregarProfesor(Profesor p) async {
+    _profesores.add(p);
+    notifyListeners();
+    await _guardar();
+  }
+
+  Future<void> editarProfesor(Profesor p) async {
+    final i = _profesores.indexWhere((x) => x.id == p.id);
+    if (i >= 0) { _profesores[i] = p; notifyListeners(); await _guardar(); }
+  }
+
+  Future<void> eliminarProfesor(String id) async {
+    _profesores.removeWhere((p) => p.id == id);
+    notifyListeners();
+    await _guardar();
+  }
+
+  // ─── Reset rol ─────────────────────────────────────────────
+  Future<void> resetRol() async {
+    _rolSeleccionado = false;
+    _esMaestro = false;
+    _esAdmin = false;
+    notifyListeners();
+    await _guardar();
+  }
 
   List<Tarea> tareasDeGrupo(String grupoId) =>
       _tareas.where((t) => t.grupoId == grupoId).toList();
@@ -525,8 +652,29 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
 
+    // Restore auth state — prefer live Supabase session
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      final metaNombre = session.user.userMetadata?['nombre'] as String?;
+      _userEmail = session.user.email ?? '';
+      final savedName = prefs.getString('userName') ?? '';
+      if (metaNombre != null && metaNombre.isNotEmpty) {
+        _userName = metaNombre;
+      } else if (savedName.isNotEmpty) {
+        _userName = savedName;
+      } else {
+        _userName = _userEmail.isNotEmpty ? _userEmail.split('@')[0] : 'Alumno';
+      }
+      _isAuthenticated = true;
+    } else {
+      _userName = prefs.getString('userName') ?? '';
+      _userEmail = prefs.getString('userEmail') ?? '';
+      _isAuthenticated = prefs.getBool('isAuthenticated') ?? false;
+    }
+
     _modoOscuro      = prefs.getBool('modoOscuro')      ?? false;
     _esMaestro       = prefs.getBool('esMaestro')       ?? false;
+    _esAdmin         = prefs.getBool('esAdmin')         ?? false;
     _rolSeleccionado = prefs.getBool('rolSeleccionado')  ?? false;
     _pomodoroTrabajo      = prefs.getInt('pomodoroTrabajo')      ?? 25;
     _pomodoroDescansoCorto = prefs.getInt('pomodoroDescansoCorto') ?? 5;
@@ -567,6 +715,8 @@ class AppProvider extends ChangeNotifier {
       if (cJson != null) _calificaciones = (jsonDecode(cJson) as List).map((e) => Calificacion.fromJson(e)).toList();
       final gJson = prefs.getString('grupos');
       if (gJson != null) _grupos = (jsonDecode(gJson) as List).map((e) => Grupo.fromJson(e)).toList();
+      final pJson = prefs.getString('profesores');
+      if (pJson != null) _profesores = (jsonDecode(pJson) as List).map((e) => Profesor.fromJson(e)).toList();
       final aJson = prefs.getString('anuncios');
       if (aJson != null) _anuncios = (jsonDecode(aJson) as List).map((e) => Anuncio.fromJson(e)).toList();
     }
@@ -696,14 +846,19 @@ class AppProvider extends ChangeNotifier {
     await prefs.setString('notas',          jsonEncode(_notas.map((n) => n.toJson()).toList()));
     await prefs.setString('calificaciones', jsonEncode(_calificaciones.map((c) => c.toJson()).toList()));
     await prefs.setString('grupos',         jsonEncode(_grupos.map((g) => g.toJson()).toList()));
+    await prefs.setString('profesores',     jsonEncode(_profesores.map((p) => p.toJson()).toList()));
     await prefs.setString('anuncios',       jsonEncode(_anuncios.map((a) => a.toJson()).toList()));
     await prefs.setBool('modoOscuro',       _modoOscuro);
     await prefs.setBool('esMaestro',        _esMaestro);
+    await prefs.setBool('esAdmin',          _esAdmin);
     await prefs.setBool('rolSeleccionado',  _rolSeleccionado);
     await prefs.setInt('pomodoroTrabajo',        _pomodoroTrabajo);
     await prefs.setInt('pomodoroDescansoCorto',  _pomodoroDescansoCorto);
     await prefs.setInt('pomodoroDescansoLargo',  _pomodoroDescansoLargo);
     await prefs.setStringList('fechasEstudio',   _fechasEstudio);
     await prefs.setString('pdfs', jsonEncode(_pdfs.map((p) => p.toJson()).toList()));
+    await prefs.setString('userName',       _userName);
+    await prefs.setString('userEmail',      _userEmail);
+    await prefs.setBool('isAuthenticated',  _isAuthenticated);
   }
 }

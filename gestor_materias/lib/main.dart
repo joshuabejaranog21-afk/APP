@@ -4,6 +4,8 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'providers/app_provider.dart';
+import 'screens/admin/admin_screen.dart';
+import 'screens/auth/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/maestro/maestro_screen.dart';
 import 'screens/rol/rol_screen.dart';
@@ -45,11 +47,15 @@ class GestorMateriasApp extends StatelessWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
-      home: !context.watch<AppProvider>().rolSeleccionado
-          ? const RolScreen()
-          : context.watch<AppProvider>().esMaestro
-              ? const MaestroScreen()
-              : const HomeScreen(),
+      home: !context.watch<AppProvider>().isAuthenticated
+          ? const LoginScreen()
+          : !context.watch<AppProvider>().rolSeleccionado
+              ? const RolScreen()
+              : context.watch<AppProvider>().esAdmin
+                  ? const AdminScreen()
+                  : context.watch<AppProvider>().esMaestro
+                      ? const MaestroScreen()
+                      : const HomeScreen(),
     );
   }
 }
