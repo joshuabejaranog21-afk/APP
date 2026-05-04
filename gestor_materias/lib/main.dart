@@ -20,6 +20,7 @@ void main() async {
   await NotificationService.inicializar();
   final provider = AppProvider();
   await provider.cargar();
+  provider.iniciarRealtime();
   runApp(
     ChangeNotifierProvider.value(
       value: provider,

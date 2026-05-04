@@ -574,11 +574,9 @@ El desarrollo de **Gestor de Materias** permitió aplicar de forma práctica con
 - La arquitectura de roles diferenciados (Alumno, Maestro, Administrador) demostró ser escalable y mantenible, con cada módulo bien delimitado y fácil de extender.
 
 **Trabajo futuro:**
-- Notificaciones push remotas con Firebase Cloud Messaging
-- Soporte iOS completo
-- Modo colaborativo en tiempo real (Supabase Realtime)
-- Exportación de calificaciones a PDF/Excel
-- Integración con plataformas LMS (Moodle, Canvas)
+- Notificaciones push remotas con Firebase Cloud Messaging (requiere cuenta Firebase)
+- Soporte iOS completo (requiere cuenta Apple Developer)
+- Integración con plataformas LMS como Moodle o Canvas (requiere credenciales institucionales)
 
 ---
 

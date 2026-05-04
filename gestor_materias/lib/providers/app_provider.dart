@@ -15,6 +15,7 @@ import '../services/notification_service.dart';
 
 class AppProvider extends ChangeNotifier {
   final _uuid = const Uuid();
+  final List<RealtimeChannel> _realtimeChannels = [];
 
   List<Materia> _materias = [];
   List<Tarea> _tareas = [];
@@ -498,6 +499,70 @@ class AppProvider extends ChangeNotifier {
     _profesores.removeWhere((p) => p.id == id);
     notifyListeners();
     await _guardar();
+  }
+
+  // ─── Supabase Realtime ─────────────────────────────────────
+  void iniciarRealtime() {
+    final db = Supabase.instance.client;
+
+    void suscribir(String tabla, Future<void> Function() recarga) {
+      final ch = db
+          .channel('public:$tabla')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: tabla,
+            callback: (_) => recarga(),
+          )
+          .subscribe();
+      _realtimeChannels.add(ch);
+    }
+
+    suscribir('tareas',        () => _recargarTareas());
+    suscribir('anuncios',      () => _recargarAnuncios());
+    suscribir('grupos',        () => _recargarGrupos());
+    suscribir('calificaciones',() => _recargarCalificaciones());
+  }
+
+  Future<void> _recargarTareas() async {
+    try {
+      _tareas = await TareasApi.getAll();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> _recargarAnuncios() async {
+    try {
+      _anuncios = await AnunciosApi.getAll();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> _recargarGrupos() async {
+    try {
+      _grupos = await GruposApi.getAll();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> _recargarCalificaciones() async {
+    try {
+      _calificaciones = await CalificacionesApi.getAll();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  void detenerRealtime() {
+    for (final ch in _realtimeChannels) {
+      Supabase.instance.client.removeChannel(ch);
+    }
+    _realtimeChannels.clear();
+  }
+
+  @override
+  void dispose() {
+    detenerRealtime();
+    super.dispose();
   }
 
   // ─── Reset rol ─────────────────────────────────────────────

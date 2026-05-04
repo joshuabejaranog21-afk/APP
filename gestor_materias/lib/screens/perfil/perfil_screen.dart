@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import '../../providers/app_provider.dart';
 import '../../models/tarea.dart';
+import '../../services/export_service.dart';
 
 class PerfilScreen extends StatelessWidget {
   const PerfilScreen({super.key});
@@ -337,7 +338,41 @@ class PerfilScreen extends StatelessWidget {
               ),
             );
           }),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+
+          // ── Exportar calificaciones ───────────────────────
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonalIcon(
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              label: const Text('Exportar calificaciones PDF'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () async {
+                final prov = context.read<AppProvider>();
+                try {
+                  final bytes = await ExportService.generarReporteCompleto(
+                    nombreAlumno: prov.userName.isNotEmpty ? prov.userName : 'Alumno',
+                    materias: prov.materias,
+                    calificaciones: prov.calificaciones,
+                    tareas: prov.tareas,
+                  );
+                  await ExportService.compartir(bytes, 'reporte_calificaciones');
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error al generar PDF: $e'),
+                          backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
 
           // ── Cerrar sesión ─────────────────────────────────
           SizedBox(

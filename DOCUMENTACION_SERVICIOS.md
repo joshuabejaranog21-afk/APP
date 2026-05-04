@@ -638,7 +638,3 @@ La aplicación implementa un patrón **Repository / Provider** donde:
 5. **share_plus** conecta la app con el ecosistema de redes sociales del dispositivo sin necesidad de APIs externas.
 6. **El perfil del alumno** y las **tarjetas del maestro** usan datos calculados en tiempo real del Provider.
 
----
-
-*Documento generado para el proyecto: Gestor de Tareas Escolares*
-*Tecnología: Flutter 3.x + Dart — Arquitectura: Provider Pattern + SharedPreferences*
